@@ -13,6 +13,7 @@ func SetupRouter(router *gin.Engine, db *gorm.DB) {
 	api := router.Group("/api")
 	{
 		SetupUploadRoutes(api, db)
+		SetupSongsRoutes(api, db)
 	}
 
 }

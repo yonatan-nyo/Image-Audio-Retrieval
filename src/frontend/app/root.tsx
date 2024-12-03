@@ -1,12 +1,7 @@
-import {
-  Links,
-  Meta,
-  Outlet,
-  Scripts,
-  ScrollRestoration,
-} from "@remix-run/react";
+import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "@remix-run/react";
 import type { LinksFunction } from "@remix-run/node";
 
+import Navigation from "./components/general/Navigation";
 import "./tailwind.css";
 
 export const links: LinksFunction = () => [
@@ -31,8 +26,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body>
-        {children}
+      <body className="overflow-x-clip">
+        <div className="flex flex-col md:flex-row">
+          <Navigation />
+          {children}
+        </div>
         <ScrollRestoration />
         <Scripts />
       </body>

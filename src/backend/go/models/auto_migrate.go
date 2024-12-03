@@ -6,5 +6,8 @@ import (
 
 // AutoMigrateAll will migrate all registered models
 func AutoMigrateAll(db *gorm.DB) {
-	db.AutoMigrate()
+	db.AutoMigrate(
+		&Album{},
+		&Song{},
+	)
 }
