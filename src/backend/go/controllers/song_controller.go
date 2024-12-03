@@ -136,6 +136,7 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 
 			// Create the song record
 			song := models.Song{
+				Name:          &convertedMidiPath,
 				AudioFilePath: convertedMidiPath,
 			}
 
