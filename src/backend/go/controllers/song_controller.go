@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -101,7 +102,12 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert file to MIDI"})
 					return
 				}
+
+				// Extract the filename
+				fileName := filepath.Base(convertedMidiPath)
+
 				song := models.Song{
+					Name:          &fileName,
 					AudioFilePath: convertedMidiPath,
 				}
 				songs = append(songs, song)
@@ -134,9 +140,12 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 				convertedMidiPath = extractedPaths[0] // No conversion needed if already in .midi format
 			}
 
+			// Extract the filename
+			fileName := filepath.Base(convertedMidiPath)
+
 			// Create the song record
 			song := models.Song{
-				Name:          &convertedMidiPath,
+				Name:          &fileName,
 				AudioFilePath: convertedMidiPath,
 			}
 
@@ -148,15 +157,26 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusOK, gin.H{
 				"message":  "File uploaded and song created successfully",
 				"path":     convertedMidiPath,
-				"filename": extractedPaths[0],
+				"filename": fileName,
 			})
+		}
+
+		// Clean up extracted files if needed
+		for _, filePath := range extractedPaths {
+			if strings.ToLower(filepath.Ext(filePath)) != ".mid" {
+				if err := os.Remove(filePath); err != nil {
+					log.Printf("Failed to delete temporary file: %s, error: %v\n", filePath, err)
+				} else {
+					log.Printf("Temporary file deleted: %s\n", filePath)
+				}
+			}
 		}
 	}
 }
 
 func convertToMidi(audioPath string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(audioPath))
-	if ext == ".midi" {
+	if ext == ".mid" {
 		log.Println("File is already a MIDI file:", audioPath)
 		return audioPath, nil
 	}
