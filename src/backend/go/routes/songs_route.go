@@ -12,4 +12,5 @@ func SetupSongsRoutes(router *gin.RouterGroup, db *gorm.DB) {
 
 	songs := router.Group("/songs")
 	songs.POST("/upload", controllers.UploadAndCreateSong(db))
+	songs.POST("/search-by-audio", controllers.SearchByHumming(db))
 }

@@ -3,11 +3,8 @@ package controllers
 import (
 	"bos/pablo/helpers"
 	"bos/pablo/models"
-	"encoding/json"
-	"fmt"
-	"io"
-	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -83,7 +80,7 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 			var songs []models.Song
 			for _, filePath := range extractedPaths {
 				// Convert each extracted file to .midi if needed
-				convertedMidiPath, err := convertToMidi(filePath)
+				convertedMidiPath, err := helpers.ConvertToMidi(filePath)
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert file to MIDI"})
 					return
@@ -118,7 +115,7 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 
 			if ext != ".midi" {
 				// Convert the uploaded file to .midi (use an external tool or library)
-				convertedMidiPath, err = convertToMidi(extractedPaths[0])
+				convertedMidiPath, err = helpers.ConvertToMidi(extractedPaths[0])
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert file to MIDI"})
 					return
@@ -152,68 +149,69 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-func convertToMidi(audioPath string) (string, error) {
-	ext := strings.ToLower(filepath.Ext(audioPath))
-	if ext == ".mid" {
-		log.Println("File is already a MIDI file:", audioPath)
-		return audioPath, nil
+// SearchByHumming handles the search functionality for humming or audio file similarity
+func SearchByHumming(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		uploadFolder := "hummings"
+
+		// Save the uploaded humming or audio file
+		uploadedFilePaths, err := helpers.SaveUploadedFile(c, "public/uploads", uploadFolder)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		audioFilePath := uploadedFilePaths[0]
+
+		// Check if the file needs to be converted to MIDI
+		fileExtension := strings.ToLower(filepath.Ext(audioFilePath))
+		var midiFilePath string
+
+		if fileExtension != ".mid" {
+			midiFilePath, err = helpers.ConvertToMidi(audioFilePath)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert file to MIDI"})
+				return
+			}
+		} else {
+			midiFilePath = audioFilePath
+		}
+
+		// Fetch all songs from the database
+		var songs []models.Song
+		err = db.Find(&songs).Error
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch songs"})
+			return
+		}
+
+		var matchedSongs []models.Song
+
+		// Calculate similarity between the uploaded MIDI and each song's MIDI
+		for _, song := range songs {
+			similarityScore := helpers.CheckAudioSimilarity(midiFilePath, song.AudioFilePathMidi)
+			if similarityScore > 0.8 {
+				matchedSongs = append(matchedSongs, song)
+			}
+		}
+
+		// Limit the result to the top 9 most similar songs
+		if len(matchedSongs) > 9 {
+			matchedSongs = matchedSongs[:9]
+		}
+
+		// Delete the uploaded humming/audio file after comparison
+		err = os.Remove(audioFilePath) // Remove the uploaded file
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete the uploaded file"})
+			return
+		}
+
+		// Respond with the matched songs
+		if len(matchedSongs) > 0 {
+			c.JSON(http.StatusOK, gin.H{"data": matchedSongs})
+		} else {
+			c.JSON(http.StatusNotFound, gin.H{"message": "No similar songs found"})
+		}
 	}
-
-	// URL of the external FastAPI service
-	apiURL := "http://127.0.0.1:8000/convert-to-midi/"
-
-	// Prepare the request payload using json.Marshal to handle escaping automatically
-	payload := map[string]string{"file_path": audioPath}
-	requestBody, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("Failed to marshal request body: %v\n", err)
-		return "", fmt.Errorf("failed to marshal request body: %w", err)
-	}
-
-	// Create the HTTP request
-	req, err := http.NewRequest("POST", apiURL, strings.NewReader(string(requestBody)))
-	if err != nil {
-		log.Printf("Failed to create HTTP request: %v\n", err)
-		return "", fmt.Errorf("failed to create HTTP request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	// Send the request
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("Failed to send request to API: %v\n", err)
-		return "", fmt.Errorf("failed to send request to API: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Read the response body
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("Failed to read response body: %v\n", err)
-		return "", fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	// Print the response body to see its content
-	log.Printf("Response body: %s\n", string(respBody))
-
-	// Check the response status
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("API returned non-200 status code: %d\n", resp.StatusCode)
-		return "", fmt.Errorf("API returned non-200 status code: %d", resp.StatusCode)
-	}
-
-	// Parse the response
-	var response struct {
-		FullPath string `json:"full_path"`
-	}
-	if err := json.Unmarshal(respBody, &response); err != nil {
-		log.Printf("Failed to parse API response: %v\n", err)
-		return "", fmt.Errorf("failed to parse API response: %w", err)
-	}
-
-	// Log the returned full path
-	log.Printf("MIDI conversion successful, full path: %s\n", response.FullPath)
-	return response.FullPath, nil
 }
