@@ -14,6 +14,7 @@ func SetupRouter(router *gin.Engine, db *gorm.DB) {
 	{
 		SetupUploadRoutes(api, db)
 		SetupSongsRoutes(api, db)
+		SetupAlbumsRoutes(api, db)
 	}
 
 }
