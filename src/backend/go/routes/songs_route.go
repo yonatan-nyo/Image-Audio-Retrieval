@@ -8,9 +8,8 @@ import (
 )
 
 func SetupSongsRoutes(router *gin.RouterGroup, db *gorm.DB) {
-	songs := router.Group("/songs")
+	router.GET("/songs", controllers.GetAllSongsWithPagination(db))
 
-	songs.GET("/", controllers.GetAllSongsWithPagination(db))
-	songs.POST("/", controllers.CreateSong(db))
+	songs := router.Group("/songs")
 	songs.POST("/upload", controllers.UploadAndCreateSong(db))
 }

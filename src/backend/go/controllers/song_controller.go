@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 
@@ -43,41 +42,28 @@ func GetAllSongsWithPagination(db *gorm.DB) gin.HandlerFunc {
 
 		offset := (page - 1) * pageSize
 
+		// Get the total count of matching records
+		var totalItems int64
+		if err := db.Model(&models.Song{}).Where("name LIKE ?", search).Count(&totalItems).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve record count"})
+			return
+		}
+
+		// Retrieve the paginated records
 		modelSlice := &[]models.Song{}
-		query := db.Order("id DESC").Where("title LIKE ?", search)
+		query := db.Order("id DESC").Where("name LIKE ?", search)
 		if err := query.Limit(pageSize).Offset(offset).Find(modelSlice).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve records"})
 			return
 		}
 
-		c.JSON(http.StatusOK, modelSlice)
-	}
-}
-
-func CreateSong(db *gorm.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var newSong struct {
-			Name          *string `json:"name"`
-			AudioFilePath string  `json:"audioFilePath" required:"true"`
-			AlbumID       *uint   `json:"albumId"`
-		}
-		if err := c.ShouldBindJSON(&newSong); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		var song = models.Song{
-			Name:          newSong.Name,
-			AudioFilePath: newSong.AudioFilePath,
-			AlbumID:       newSong.AlbumID,
-		}
-
-		if err := db.Create(&song).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create record"})
-			return
-		}
-
-		c.JSON(http.StatusCreated, song)
+		// Include metadata in the response
+		c.JSON(http.StatusOK, gin.H{
+			"totalItems": totalItems,
+			"page":       page,
+			"pageSize":   pageSize,
+			"data":       modelSlice,
+		})
 	}
 }
 
@@ -107,8 +93,9 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 				fileName := filepath.Base(convertedMidiPath)
 
 				song := models.Song{
-					Name:          &fileName,
-					AudioFilePath: convertedMidiPath,
+					Name:              fileName,
+					AudioFilePath:     filePath,
+					AudioFilePathMidi: convertedMidiPath,
 				}
 				songs = append(songs, song)
 			}
@@ -145,8 +132,9 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 
 			// Create the song record
 			song := models.Song{
-				Name:          &fileName,
-				AudioFilePath: convertedMidiPath,
+				Name:              fileName,
+				AudioFilePath:     extractedPaths[0],
+				AudioFilePathMidi: convertedMidiPath,
 			}
 
 			if err := db.Create(&song).Error; err != nil {
@@ -161,16 +149,6 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 			})
 		}
 
-		// Clean up extracted files if needed
-		for _, filePath := range extractedPaths {
-			if strings.ToLower(filepath.Ext(filePath)) != ".mid" {
-				if err := os.Remove(filePath); err != nil {
-					log.Printf("Failed to delete temporary file: %s, error: %v\n", filePath, err)
-				} else {
-					log.Printf("Temporary file deleted: %s\n", filePath)
-				}
-			}
-		}
 	}
 }
 
