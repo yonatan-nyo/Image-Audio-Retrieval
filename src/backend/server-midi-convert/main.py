@@ -52,15 +52,18 @@ def convert_audio_to_midi(file_path: str) -> str:
     # Specify the audio file and output directory
     audio_files = [file_path]
     output_dir = os.path.dirname(file_path)
-    # Call the function
+
+    # Call the function for predicting and saving
     predict_and_save(
         audio_files,             # List of input audio file paths
         output_dir,              # Output directory where MIDI files will be saved
         model_or_model_path=model_path,  # Path to the default model
         save_midi=True,          # Save as MIDI files
-        sonify_midi=False,        # Sonify MIDI output
+        sonify_midi=False,       # Sonify MIDI output
         save_model_outputs=False,  # Save intermediate model outputs
-        save_notes=False          # Save note data as JSON
+        save_notes=False         # Save note data as JSON
     )
 
-    return os.path.join(output_dir, f"{file_path}_basic_pitch.mid")
+    # Create the MIDI output file path by appending '_basic_pitch.mid'
+    output_filename = f"{os.path.splitext(os.path.basename(file_path))[0]}_basic_pitch.mid"
+    return os.path.join(output_dir, output_filename)
