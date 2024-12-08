@@ -13,31 +13,12 @@ import (
 	"os"
 )
 
-func CheckPictureSimilarity(uploadedPicturePath, albumPicturePath string) float64 {
+func CheckPictureSimilarity(uploadPictureFlattened []float64, albumPicturePath string) float64 {
 	// Set standard image size for processing
 	width, height := 120, 120
 
-	uploadPictureImg, err := loadImage(uploadedPicturePath)
-	if err != nil {
-		log.Fatalf("Error loading humming image: %v", err)
-	}
-	
-	albumPictureImage, err := loadImage(albumPicturePath)
-	if err != nil {
-		log.Fatalf("Error loading song image: %v", err)
-	}
-
-	// Convert images to grayscale
-	uploadPictureGray := convertToGrayscale(uploadPictureImg)
-	albumPictureGray := convertToGrayscale(albumPictureImage)
-
-	// Resize images to standard size
-	uploadPictureResized := resizeImage(uploadPictureGray, image.Point{width, height})
-	albumPictureResized := resizeImage(albumPictureGray, image.Point{width, height})
-
 	// Flatten images to vectors
-	uploadPictureFlattened := flattenImage(uploadPictureResized)
-	albumPictureFlattened := flattenImage(albumPictureResized)
+	albumPictureFlattened, err := PreprocessImage(albumPicturePath, width, height)
 
 	// Load images into matrix
 	uploadPictureMatrix := types.NewMatrix([][]float64{uploadPictureFlattened})
@@ -68,11 +49,23 @@ func CheckPictureSimilarity(uploadedPicturePath, albumPicturePath string) float6
 	distance := euclideanDistance(uploadPictureProjected, albumPictureProjected)
 
 	maxSimilarity := 10.0
-	similarity := math.Max(0, 1 - (distance / maxSimilarity))
+	similarity := math.Max(0, 1-(distance/maxSimilarity))
 
 	log.Printf("Image Distance: %.4f, Similarity Score: %.4f", distance, similarity)
 
 	return similarity
+}
+
+func PreprocessImage(imagePath string, width, height int) ([]float64, error) {
+	// Load the image
+	pictureImg, err := loadImage(imagePath)
+	if err != nil {
+		return nil, fmt.Errorf("error loading image from path %s: %w", imagePath, err)
+	}
+	// grayscale, resize, and flatten the image
+	pictureFlattened := flattenImage(resizeImage(convertToGrayscale(pictureImg), image.Point{X: width, Y: height}))
+
+	return pictureFlattened, nil
 }
 
 // Utility functions for image processing and math

@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -182,77 +184,101 @@ func SearchByImage(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		imageFilePath := uploadedFilePaths[0] // Get the path of the uploaded image
+		imageFilePath := uploadedFilePaths[0]
 		log.Printf("Step 2: Image uploaded successfully, file path: %s\n", imageFilePath)
 
-		// Convert the image to PNG format if it's not already in PNG format
+		// Convert the image to PNG format if necessary
 		fileExtension := strings.ToLower(filepath.Ext(imageFilePath))
-		log.Printf("Step 3: Checking file extension: %s\n", fileExtension)
-
 		if fileExtension != ".png" {
-			// Convert the image to PNG
-			log.Println("Step 4: Converting image to PNG format")
+			log.Println("Step 3: Converting image to PNG format")
 			convertedImagePath, err := helpers.ConvertToPng(imageFilePath)
 			if err != nil {
 				log.Printf("Error in converting image to PNG: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert image to PNG"})
 				return
 			}
-			// Replace the original file path with the new converted PNG file path
 			imageFilePath = convertedImagePath
-			log.Printf("Step 5: Image converted successfully, new path: %s\n", imageFilePath)
 		}
 
-		// Fetch all albums from the database (not songs)
-		log.Println("Step 6: Fetching all albums from the database")
-		var albums []models.Album
-		err = db.Find(&albums).Error
+		// Preprocess the uploaded image
+		uploadedImageVector, err := helpers.PreprocessImage(imageFilePath, 120, 120)
 		if err != nil {
+			log.Printf("Error in preprocessing image: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to preprocess image"})
+			return
+		}
+
+		// Fetch all albums from the database
+		log.Println("Step 4: Fetching all albums from the database")
+		var albums []models.Album
+		if err := db.Find(&albums).Error; err != nil {
 			log.Printf("Error in fetching albums from database: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch albums"})
 			return
 		}
+		log.Printf("Step 5: Successfully fetched %d albums from the database\n", len(albums))
 
-		log.Printf("Step 7: Successfully fetched %d albums from the database\n", len(albums))
+		// Use a goroutine pool to parallelize similarity calculations
+		var wg sync.WaitGroup
+		results := make(chan models.Album, len(albums)) // Channel to collect matched albums
 
-		var matchedAlbums []models.Album
+		// start benchmarking
+		startTime := time.Now()
 
-		// Calculate similarity between the uploaded image and each album's image
-		log.Println("Step 8: Calculating similarity between uploaded image and albums' cover images")
-		
 		for _, album := range albums {
-			if _, err := os.Stat(album.PicFilePath); os.IsNotExist(err) {
-        log.Printf("Album image not found: %s\n", album.PicFilePath)
-        continue
-			}
-			similarityScore := helpers.CheckPictureSimilarity(imageFilePath, album.PicFilePath) // Compare with the album's image
-			log.Printf("Checking similarity for %s %s\n", imageFilePath, album.PicFilePath)
-			if similarityScore > 0.8 { // If similarity is greater than 80%
-				matchedAlbums = append(matchedAlbums, album)
-			}
+			wg.Add(1)
+			go func(album models.Album) {
+				defer wg.Done()
+				// Skip if album image is missing
+				if _, err := os.Stat(album.PicFilePath); os.IsNotExist(err) {
+					log.Printf("Album image not found: %s\n", album.PicFilePath)
+					return
+				}
+
+				// Calculate similarity
+				similarityScore := helpers.CheckPictureSimilarity(uploadedImageVector, album.PicFilePath)
+				log.Printf("Similarity score for %d: %.4f\n", album.ID, similarityScore)
+
+				if similarityScore > 0.8 { // If similarity is greater than 80%
+					results <- album
+				}
+			}(album)
 		}
 
-		// Limit the result to the top 9 most similar albums
+		// Wait for all goroutines to complete
+		go func() {
+			wg.Wait()
+			close(results) // Close the channel once all routines are done
+		}()
+
+		// Collect results
+		var matchedAlbums []models.Album
+		for album := range results {
+			matchedAlbums = append(matchedAlbums, album)
+		}
+
+		// end benchmarking
+		endTime := time.Since(startTime)
+
+		// Limit to top 9 matches
 		if len(matchedAlbums) > 9 {
 			matchedAlbums = matchedAlbums[:9]
 		}
-		log.Printf("Step 9: Found %d matched albums\n", len(matchedAlbums))
+		log.Printf("Step 6: Found %d matched albums\n", len(matchedAlbums))
 
-		// Delete the uploaded image after comparison
-		log.Println("Step 10: Deleting the uploaded image after comparison")
-		err = os.Remove(imageFilePath) // Remove the uploaded file
-		if err != nil {
-			log.Printf("Error in deleting uploaded file: %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete the uploaded file"})
+		// Clean up uploaded image
+		log.Println("Step 7: Deleting the uploaded image after comparison")
+		if err := os.Remove(imageFilePath); err != nil {
+			log.Printf("Error deleting uploaded file: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete uploaded file"})
 			return
 		}
 
-		// Respond with the matched albums
+		log.Printf("completed in %v\n", endTime)
+		// Respond with results
 		if len(matchedAlbums) > 0 {
-			log.Println("Step 11: Returning matched albums as response")
-			c.JSON(http.StatusOK, gin.H{"data": matchedAlbums})
+			c.JSON(http.StatusOK, gin.H{"data": matchedAlbums, "time": endTime.Seconds()})
 		} else {
-			log.Println("Step 12: No similar albums found")
 			c.JSON(http.StatusNotFound, gin.H{"message": "No similar albums found"})
 		}
 	}

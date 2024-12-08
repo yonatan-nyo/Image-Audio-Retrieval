@@ -14,9 +14,12 @@ const Albums: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [imageSearchLoading, setImageSearchLoading] = useState<boolean>(false);
+  const [benchmarkTime, setBenchmarkTime] = useState<number>(0);
+  const [isBenchmarking, setIsBenchmarking] = useState<boolean>(false);
 
   const fetchAlbums = useCallback(
     async (page: number, search = ""): Promise<void> => {
+      setIsBenchmarking(false);
       setLoading(true);
       try {
         const response = await axiosInstance.get("/albums", {
@@ -73,6 +76,8 @@ const Albums: React.FC = () => {
         });
 
         if (response.status === 200) {
+          setIsBenchmarking(true);
+          setBenchmarkTime(response.data.time);
           setAlbums(response.data.data);
           setTotalPages(1); // since we're not paginating the image search results
         } else {
@@ -108,7 +113,8 @@ const Albums: React.FC = () => {
           />
           <Button onClick={handleSearchSubmit}>Search</Button>
         </div>
-        <input type="file" accept="image/*" onChange={handleImageSearch} className="mt-4 p-2 border rounded text-black" />
+        <input type="file" accept="image/*" onChange={handleImageSearch} className="mt-4 p-2 border rounded text-white" />
+        {isBenchmarking && <p className="mt-2">Benchmark time: {benchmarkTime}ms</p>}
       </section>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 h-[400px] place-content-start">
