@@ -1,3 +1,4 @@
+// picture_similarity_helpers.go contains helper functions for image preprocessing and PCA
 package helpers
 
 import (
@@ -10,190 +11,68 @@ import (
 	"log"
 	"math"
 	"os"
-	"path/filepath"
-	"sort"
 )
-
-// ImageProcessor handles image preprocessing and PCA
-type ImageProcessor struct {
-	images        *types.Matrix
-	imageNames    []string
-	meanPixel     []float64
-	pcaComponents [][]float64
-	imageSize     image.Point
-}
 
 func CheckPictureSimilarity(uploadedPicturePath, albumPicturePath string) float64 {
 	// Set standard image size for processing
 	width, height := 120, 120
 
-	// Create a new image processor with the uploads folder
-	processor, err := NewImageProcessor("public/uploads", width, height)
+	uploadPictureImg, err := loadImage(uploadedPicturePath)
 	if err != nil {
-		log.Printf("Error initializing image processor: %v", err)
-		return 0.0
+		log.Fatalf("Error loading humming image: %v", err)
 	}
-
-	// Find similar images to the song picture
-	similarImages, distances, err := processor.FindSimilarImages(uploadedPicturePath, 1)
+	
+	albumPictureImage, err := loadImage(albumPicturePath)
 	if err != nil {
-		log.Printf("Error finding similar images: %v", err)
-		return 0.0
+		log.Fatalf("Error loading song image: %v", err)
 	}
 
-	// If no similar images found, return low similarity
-	if len(distances) == 0 {
-		return 0.0
-	}
+	// Convert images to grayscale
+	uploadPictureGray := convertToGrayscale(uploadPictureImg)
+	albumPictureGray := convertToGrayscale(albumPictureImage)
 
-	// Convert distance to similarity score
-	// Lower distance means higher similarity
-	// We'll use an exponential decay function to convert distance to similarity
-	maxSimilarityDistance := 10.0
-	similarity := math.Max(0, 1-(distances[0]/maxSimilarityDistance))
+	// Resize images to standard size
+	uploadPictureResized := resizeImage(uploadPictureGray, image.Point{width, height})
+	albumPictureResized := resizeImage(albumPictureGray, image.Point{width, height})
 
-	log.Printf("Similar Image: %s, Distance: %.4f, Similarity Score: %.4f",
-		similarImages[0], distances[0], similarity)
+	// Flatten images to vectors
+	uploadPictureFlattened := flattenImage(uploadPictureResized)
+	albumPictureFlattened := flattenImage(albumPictureResized)
 
-	return similarity
-}
+	// Load images into matrix
+	uploadPictureMatrix := types.NewMatrix([][]float64{uploadPictureFlattened})
+	albumPictureMatrix := types.NewMatrix([][]float64{albumPictureFlattened})
 
-// NewImageProcessor creates a new ImageProcessor
-func NewImageProcessor(folderPath string, width, height int) (*ImageProcessor, error) {
-	processor := &ImageProcessor{
-		imageSize: image.Point{X: width, Y: height},
-	}
-
-	err := processor.loadImagesFromFolder(folderPath)
-	if err != nil {
-		return nil, err
-	}
-
-	err = processor.preprocessImages()
-	if err != nil {
-		return nil, err
-	}
-
-	return processor, nil
-}
-
-// loadImagesFromFolder reads images from a folder and converts them to grayscale
-func (ip *ImageProcessor) loadImagesFromFolder(folderPath string) error {
-	var imagesList [][]float64
-
-	err := filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Check if file is an image
-		ext := filepath.Ext(path)
-		if ext == ".png" {
-			img, err := loadImage(path)
-			if err != nil {
-				return err
-			}
-
-			grayImg := convertToGrayscale(img)
-			resizedImg := resizeImage(grayImg, ip.imageSize)
-			flattenedImg := flattenImage(resizedImg)
-
-			imagesList = append(imagesList, flattenedImg)
-			ip.imageNames = append(ip.imageNames, filepath.Base(path))
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return fmt.Errorf("error loading images: %v", err)
-	}
-
-	// Convert images list to Matrix
-	ip.images = types.NewMatrix(imagesList)
-
-	return nil
-}
-
-// preprocessImages standardizes the image dataset
-func (ip *ImageProcessor) preprocessImages() error {
-	if ip.images.Rows() == 0 {
-		return fmt.Errorf("no images loaded")
-	}
-	// Compute mean pixel values
-	ip.meanPixel = computeMeanPixel(ip.images).GetRow(0)
+	// Compute mean pixel
+	meanPixel := computeMeanPixel(types.NewMatrix([][]float64{uploadPictureFlattened, albumPictureFlattened}))
 
 	// Center the data
-	meanPixelMatrix := types.NewMatrix([][]float64{ip.meanPixel})
-	centeredImages := centerData(ip.images, meanPixelMatrix)
+	meanPixelMatrix := types.NewMatrix([][]float64{meanPixel.GetRow(0)})
+	uploadPictureMatrix = subtractVector(uploadPictureMatrix, meanPixelMatrix)
+	albumPictureMatrix = subtractVector(albumPictureMatrix, meanPixelMatrix)
 
 	// Perform PCA
-	components, _, err := randomizedSVD(centeredImages, 100)
+	components, _, err := randomizedSVD(types.NewMatrix([][]float64{uploadPictureFlattened, albumPictureFlattened}), 10)
 	if err != nil {
-		return err
+		log.Fatalf("Error performing PCA: %v", err)
+		return 0.0
 	}
 
-	ip.pcaComponents = components
-	return nil
-}
+	pcaComponents := types.NewMatrix(components)
 
-// findSimilarImages finds images similar to the query image
-func (ip *ImageProcessor) FindSimilarImages(queryImagePath string, topK int) ([]string, []float64, error) {
-	// Load and preprocess query image
-	queryImg, err := loadImage(queryImagePath)
-	if err != nil {
-		return nil, nil, err
-	}
+	// Project images to PCA space
+	uploadPictureProjected := projectToPCASpace(uploadPictureMatrix, pcaComponents)
+	albumPictureProjected := projectToPCASpace(albumPictureMatrix, pcaComponents)
 
-	grayImg := convertToGrayscale(queryImg)
-	resizedImg := resizeImage(grayImg, ip.imageSize)
-	flattenedQuery := flattenImage(resizedImg)
+	// Compute Euclidean distance
+	distance := euclideanDistance(uploadPictureProjected, albumPictureProjected)
 
-	// Convert flattened query to matrix
-	queryMatrix := types.NewMatrix([][]float64{flattenedQuery})
+	maxSimilarity := 10.0
+	similarity := math.Max(0, 1 - (distance / maxSimilarity))
 
-	// Center the query image
-	meanPixelMatrix := types.NewMatrix([][]float64{ip.meanPixel})
-	centeredQuery := subtractVector(queryMatrix, meanPixelMatrix)
+	log.Printf("Image Distance: %.4f, Similarity Score: %.4f", distance, similarity)
 
-	// Project query to PCA space
-	pcaComponentsMatrix := types.NewMatrix(ip.pcaComponents)
-	queryPCASpace := projectToPCASpace(centeredQuery, pcaComponentsMatrix)
-
-	// Compute distances
-	distances := make([]float64, ip.images.Rows())
-	for i := 0; i < ip.images.Rows(); i++ {
-		rowImg := ip.images.GetRow(i)
-		meanPixelMatrix := types.NewMatrix([][]float64{ip.meanPixel})
-		centeredImg := subtractVector(types.NewMatrix([][]float64{rowImg}), meanPixelMatrix)
-		pcaComponentsMatrix := types.NewMatrix(ip.pcaComponents)
-		imgPCASpace := projectToPCASpace(centeredImg, pcaComponentsMatrix)
-		distances[i] = euclideanDistance(queryPCASpace, imgPCASpace)
-	}
-
-	// Sort and return top K results
-	type result struct {
-		index    int
-		distance float64
-	}
-
-	results := make([]result, len(distances))
-	for i, dist := range distances {
-		results[i] = result{index: i, distance: dist}
-	}
-
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].distance < results[j].distance
-	})
-
-	similarImages := make([]string, topK)
-	similarDistances := make([]float64, topK)
-	for i := 0; i < topK; i++ {
-		similarImages[i] = ip.imageNames[results[i].index]
-		similarDistances[i] = results[i].distance
-	}
-
-	return similarImages, similarDistances, nil
+	return similarity
 }
 
 // Utility functions for image processing and math
@@ -266,22 +145,6 @@ func computeMeanPixel(images *types.Matrix) *types.Matrix {
 	}
 
 	return types.NewMatrix([][]float64{meanPixel})
-}
-
-func centerData(images *types.Matrix, meanPixel *types.Matrix) *types.Matrix {
-	centeredImages := make([][]float64, images.Rows())
-	meanRow := meanPixel.GetRow(0)
-
-	for i := 0; i < images.Rows(); i++ {
-		row := images.GetRow(i)
-		centeredRow := make([]float64, len(row))
-		for j := range row {
-			centeredRow[j] = row[j] - meanRow[j]
-		}
-		centeredImages[i] = centeredRow
-	}
-
-	return types.NewMatrix(centeredImages)
 }
 
 func subtractVector(vec *types.Matrix, mean *types.Matrix) *types.Matrix {

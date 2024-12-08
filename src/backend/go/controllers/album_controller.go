@@ -219,7 +219,12 @@ func SearchByImage(db *gorm.DB) gin.HandlerFunc {
 
 		// Calculate similarity between the uploaded image and each album's image
 		log.Println("Step 8: Calculating similarity between uploaded image and albums' cover images")
+		
 		for _, album := range albums {
+			if _, err := os.Stat(album.PicFilePath); os.IsNotExist(err) {
+        log.Printf("Album image not found: %s\n", album.PicFilePath)
+        continue
+			}
 			similarityScore := helpers.CheckPictureSimilarity(imageFilePath, album.PicFilePath) // Compare with the album's image
 			log.Printf("Checking similarity for %s %s\n", imageFilePath, album.PicFilePath)
 			if similarityScore > 0.8 { // If similarity is greater than 80%
