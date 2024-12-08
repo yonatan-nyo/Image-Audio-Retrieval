@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bos/pablo/helpers"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +15,8 @@ func GetFile() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "File path is required"})
 			return
 		}
+
+		fmt.Println("relativePath", relativePath)
 
 		helpers.ServeFile(c, "public/uploads", relativePath, "public/not-found.jpg")
 	}

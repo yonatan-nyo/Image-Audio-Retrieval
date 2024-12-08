@@ -1,17 +1,17 @@
 package helpers
 
 import (
-	"log"
-	"math"
-	"sort"
 	"bos/pablo/types"
 	"fmt"
 	"image"
 	"image/color"
 	_ "image/jpeg"
 	_ "image/png"
+	"log"
+	"math"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 // ImageProcessor handles image preprocessing and PCA
@@ -23,7 +23,7 @@ type ImageProcessor struct {
 	imageSize     image.Point
 }
 
-func CheckPictureSimilarity(hummingPicturePath, songPicturePath string) float64 {
+func CheckPictureSimilarity(uploadedPicturePath, albumPicturePath string) float64 {
 	// Set standard image size for processing
 	width, height := 120, 120
 
@@ -35,7 +35,7 @@ func CheckPictureSimilarity(hummingPicturePath, songPicturePath string) float64 
 	}
 
 	// Find similar images to the song picture
-	similarImages, distances, err := processor.FindSimilarImages(hummingPicturePath, 1)
+	similarImages, distances, err := processor.FindSimilarImages(uploadedPicturePath, 1)
 	if err != nil {
 		log.Printf("Error finding similar images: %v", err)
 		return 0.0
@@ -49,10 +49,10 @@ func CheckPictureSimilarity(hummingPicturePath, songPicturePath string) float64 
 	// Convert distance to similarity score
 	// Lower distance means higher similarity
 	// We'll use an exponential decay function to convert distance to similarity
-	maxSimilarityDistance := 10.0 
-	similarity := math.Max(0, 1 - (distances[0] / maxSimilarityDistance))
+	maxSimilarityDistance := 10.0
+	similarity := math.Max(0, 1-(distances[0]/maxSimilarityDistance))
 
-	log.Printf("Similar Image: %s, Distance: %.4f, Similarity Score: %.4f", 
+	log.Printf("Similar Image: %s, Distance: %.4f, Similarity Score: %.4f",
 		similarImages[0], distances[0], similarity)
 
 	return similarity
@@ -196,7 +196,6 @@ func (ip *ImageProcessor) FindSimilarImages(queryImagePath string, topK int) ([]
 	return similarImages, similarDistances, nil
 }
 
-
 // Utility functions for image processing and math
 func loadImage(path string) (image.Image, error) {
 	file, err := os.Open(path)
@@ -313,13 +312,13 @@ func projectToPCASpace(vec *types.Matrix, components *types.Matrix) []float64 {
 	// Ensure the projection works for a matrix, not just a slice
 	queryVec := vec.GetRow(0)
 	projectedVec := make([]float64, components.Cols())
-	
+
 	for j := 0; j < components.Cols(); j++ {
 		for i := 0; i < components.Rows(); i++ {
 			projectedVec[j] += queryVec[i] * components.Get(i, j)
 		}
 	}
-	
+
 	return projectedVec
 }
 
