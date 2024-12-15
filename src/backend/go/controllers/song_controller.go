@@ -110,18 +110,14 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 
 		} else {
 			// Handle non-ZIP files (e.g., .midi or other audio files)
-			ext := strings.ToLower(filepath.Ext(extractedPaths[0]))
+			// ext := strings.ToLower(filepath.Ext(extractedPaths[0]))
 			var convertedMidiPath string
 
-			if ext != ".midi" {
-				// Convert the uploaded file to .midi (use an external tool or library)
-				convertedMidiPath, err = helpers.ConvertToMidi(extractedPaths[0])
-				if err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert file to MIDI"})
-					return
-				}
-			} else {
-				convertedMidiPath = extractedPaths[0] // No conversion needed if already in .midi format
+			// Convert the uploaded file to .midi (use an external tool or library)
+			convertedMidiPath, err = helpers.ConvertToMidi(extractedPaths[0])
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert file to MIDI"})
+				return
 			}
 
 			// Extract the filename

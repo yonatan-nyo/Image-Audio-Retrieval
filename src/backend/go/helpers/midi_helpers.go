@@ -6,16 +6,11 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"path/filepath"
 	"strings"
 )
 
 func ConvertToMidi(audioPath string) (string, error) {
-	ext := strings.ToLower(filepath.Ext(audioPath))
-	if ext == ".mid" {
-		log.Println("File is already a MIDI file:", audioPath)
-		return audioPath, nil
-	}
+	// ext := strings.ToLower(filepath.Ext(audioPath))
 
 	// URL of the external FastAPI service
 	apiURL := "http://127.0.0.1:8000/convert-to-midi/"

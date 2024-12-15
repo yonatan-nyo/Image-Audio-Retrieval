@@ -34,8 +34,12 @@ async def convert_to_midi(request: FilePathRequest):
         raise HTTPException(status_code=404, detail="File not found")
 
     try:
-        # Generate MIDI file
-        midi_file_path = convert_audio_to_midi(file_path)
+        if file_path.lower().endswith(".mid"):
+            logger.info("File is already a MIDI file. Skipping conversion.")
+            midi_file_path = os.path.abspath(file_path)
+        else:
+            midi_file_path = convert_audio_to_midi(file_path)
+
         full_midi_path = os.path.abspath(midi_file_path)
         midi_data_array = convert_midi_to_array(midi_file_path)
         json_file_path = save_midi_array_to_json(midi_data_array, midi_file_path, os.path.basename(file_path))
@@ -92,15 +96,14 @@ def convert_midi_to_array(midi_file_path: str):
 
 # Helper Function: Save MIDI Array to JSON
 def save_midi_array_to_json(midi_data_array, midi_file_path, original_filename):
-    """
-    Save the MIDI data array as a JSON file. Use the original file name with a unique identifier for the JSON file.
-    """
     output_dir = os.path.dirname(midi_file_path)
-    unique_id = uuid.uuid4().hex  # Generate a unique identifier
+    unique_id = uuid.uuid4().hex
     json_filename = f"{os.path.splitext(original_filename)[0]}_{unique_id}_data.json"
     json_file_path = os.path.join(output_dir, json_filename)
 
+    compact_data = " ".join(map(str, midi_data_array))
+
     with open(json_file_path, "w") as json_file:
-        json.dump(midi_data_array, json_file, indent=4)
+        json.dump({"data": compact_data}, json_file, indent=4)
 
     return json_file_path
