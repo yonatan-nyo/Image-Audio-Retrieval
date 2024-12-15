@@ -114,7 +114,7 @@ const Albums: React.FC = () => {
           <Button onClick={handleSearchSubmit}>Search</Button>
         </div>
         <input type="file" accept="image/*" onChange={handleImageSearch} className="mt-4 p-2 border rounded text-white" />
-        {isBenchmarking && <p className="mt-2">Benchmark time: {benchmarkTime}ms</p>}
+        {isBenchmarking && <p className="mt-2">Benchmark time: {benchmarkTime}s (checking similarity)</p>}
       </section>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 h-[400px] place-content-start">
