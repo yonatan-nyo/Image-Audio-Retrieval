@@ -96,7 +96,7 @@ const Albums: React.FC = () => {
   }, [fetchAlbums, page]);
 
   return (
-    <main className="p-4 w-0 grow">
+    <main className="p-4 w-0 grow overflow-y-scroll max-h-screen">
       <section className="flex w-full justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Albums</h1>
         <Button onClick={handleNavigateToUpload}>+ Upload Album</Button>
@@ -113,11 +113,16 @@ const Albums: React.FC = () => {
           />
           <Button onClick={handleSearchSubmit}>Search</Button>
         </div>
-        <input type="file" accept="image/*" onChange={handleImageSearch} className="mt-4 p-2 border rounded text-white" />
+        <input
+          type="file"
+          accept=".jpg,.png,.jpeg,.webp"
+          onChange={handleImageSearch}
+          className="mt-4 p-2 border rounded text-white"
+        />
         {isBenchmarking && <p className="mt-2">Benchmark time: {benchmarkTime}s (checking similarity)</p>}
       </section>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 h-[400px] place-content-start">
+      <section className="grid grid-cols-3 gap-3 h-[400px] min-h-fit place-content-start">
         {loading || imageSearchLoading ? (
           <p className="text-center col-span-3">Loading...</p>
         ) : albums.length > 0 ? (
@@ -135,7 +140,7 @@ const Albums: React.FC = () => {
               </div>
               <div className="p-4 h-[40%] w-full">
                 <h2 className="font-semibold line-clamp-1 w-full">{album.Name}</h2>
-                <p className="text-sm text-gray-600">ID: {album.ID}</p>
+                <p className="text-xs text-gray-600">ID: {album.ID}</p>
               </div>
             </div>
           ))

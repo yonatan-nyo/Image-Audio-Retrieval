@@ -13,13 +13,7 @@ import (
 	"os"
 )
 
-func CheckPictureSimilarity(uploadPictureFlattened []float64, albumPicturePath string) float64 {
-	// Set standard image size for processing
-	width, height := 120, 120
-
-	// Flatten images to vectors
-	albumPictureFlattened, err := PreprocessImage(albumPicturePath, width, height)
-
+func CheckPictureSimilarity(uploadPictureFlattened []float64, albumPictureFlattened []float64) float64 {
 	// Load images into matrix
 	uploadPictureMatrix := types.NewMatrix([][]float64{uploadPictureFlattened})
 	albumPictureMatrix := types.NewMatrix([][]float64{albumPictureFlattened})
