@@ -4,6 +4,7 @@ import axiosInstance from "~/utils/axiosInstance";
 import Button from "~/components/general/Button";
 import { IAlbum } from "~/lib/types/Album";
 import { getFileUrl } from "~/lib/getFileUrl";
+import { isAxiosError } from "axios";
 
 const Albums: React.FC = () => {
   const navigate = useNavigate();
@@ -16,10 +17,14 @@ const Albums: React.FC = () => {
   const [imageSearchLoading, setImageSearchLoading] = useState<boolean>(false);
   const [benchmarkTime, setBenchmarkTime] = useState<number>(0);
   const [isBenchmarking, setIsBenchmarking] = useState<boolean>(false);
+  const [similarities, setSimilarities] = useState<number[]>([]);
+  const [isSimilarity, setIsSimilarity] = useState<boolean>(false);
 
   const fetchAlbums = useCallback(
     async (page: number, search = ""): Promise<void> => {
       setIsBenchmarking(false);
+      setIsSimilarity(false);
+      setSimilarities([]);
       setLoading(true);
       try {
         const response = await axiosInstance.get("/albums", {
@@ -61,7 +66,9 @@ const Albums: React.FC = () => {
     navigate("/albums/upload");
   };
 
-  const handleImageSearch = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+  const handleImageSearch = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ): Promise<void> => {
     const file = event.target.files?.[0];
     if (file) {
       setImageSearchLoading(true);
@@ -69,22 +76,40 @@ const Albums: React.FC = () => {
       formData.append("file", file);
 
       try {
-        const response = await axiosInstance.post("/albums/search-by-image", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        });
+        const response = await axiosInstance.post(
+          "/albums/search-by-image",
+          formData,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          }
+        );
 
         if (response.status === 200) {
           setIsBenchmarking(true);
           setBenchmarkTime(response.data.time);
           setAlbums(response.data.data);
+
+          const similarities = response.data.data.map(
+            (item: { similarity: number }) => item.similarity
+          );
+          setSimilarities(similarities);
+
+          setIsSimilarity(true);
           setTotalPages(1); // since we're not paginating the image search results
         } else {
-          console.error("Failed to search by image.");
+          console.error("Unexpected response status:", response.status);
         }
       } catch (error) {
-        console.error("Error searching by image:", error);
+        if (isAxiosError(error) && error.response?.status === 404) {
+          setAlbums([]); // Clear albums
+          setTotalPages(1); // Reset pagination
+          setIsSimilarity(false); // Ensure similarity mode is off
+          console.error("No similar image found.");
+        } else {
+          console.error("Error searching by image:", error);
+        }
       } finally {
         setImageSearchLoading(false);
       }
@@ -119,7 +144,11 @@ const Albums: React.FC = () => {
           onChange={handleImageSearch}
           className="mt-4 p-2 border rounded text-white"
         />
-        {isBenchmarking && <p className="mt-2">Benchmark time: {benchmarkTime}s (checking similarity)</p>}
+        {isBenchmarking && (
+          <p className="mt-2">
+            Benchmark time: {benchmarkTime}s (checking similarity)
+          </p>
+        )}
       </section>
 
       <section className="grid grid-cols-3 gap-3 h-[400px] min-h-fit place-content-start">
@@ -130,7 +159,8 @@ const Albums: React.FC = () => {
             <NavLink
               to={`/albums/${album.ID}`}
               key={index}
-              className="border rounded-lg cursor-pointer group hover:brightness-110 flex flex-col h-[170px] justify-start overflow-clip relative">
+              className="border rounded-lg cursor-pointer group hover:brightness-110 flex flex-col h-[170px] min-h-fit justify-start overflow-clip relative"
+            >
               <div className="relative w-full h-[60%] overflow-hidden">
                 <img
                   src={getFileUrl(album.PicFilePath)}
@@ -140,8 +170,17 @@ const Albums: React.FC = () => {
                 <div className="w-full h-full absolute top-0 left-0 bg-gradient-to-t bg-black/10 from-[#202120]/100 to-[#202120]/10" />
               </div>
               <div className="p-4 h-[40%] w-full">
-                <h2 className="font-semibold line-clamp-1 w-full">{album.Name}</h2>
-                <p className="text-xs text-gray-600">ID: {album.ID}</p>
+                <h2 className="font-semibold line-clamp-1 w-full">
+                  {album.Name}
+                </h2>
+                <div className="flex justify-between items-center">
+                  <p className="text-xs text-gray-200">ID: {album.ID}</p>
+                  {isSimilarity && (
+                    <p className="text-xs text-gray-200">
+                      Similarity: {Math.round(similarities[index] * 100)}%
+                    </p>
+                  )}
+                </div>
               </div>
             </NavLink>
           ))
@@ -151,13 +190,19 @@ const Albums: React.FC = () => {
       </section>
 
       <section className="flex justify-between items-center mt-6">
-        <Button onClick={() => handlePageChange(page - 1)} disabled={page === 1}>
+        <Button
+          onClick={() => handlePageChange(page - 1)}
+          disabled={page === 1}
+        >
           Previous
         </Button>
         <span>
           Page {page} of {totalPages}
         </span>
-        <Button onClick={() => handlePageChange(page + 1)} disabled={page === totalPages}>
+        <Button
+          onClick={() => handlePageChange(page + 1)}
+          disabled={page === totalPages}
+        >
           Next
         </Button>
       </section>
