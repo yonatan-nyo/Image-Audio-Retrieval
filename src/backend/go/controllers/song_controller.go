@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"path/filepath"
 
@@ -192,7 +194,6 @@ func SearchByHumming(db *gorm.DB) gin.HandlerFunc {
 
 		// Check if the file needs to be converted to MIDI
 		var jsonHummingPath string
-
 		_, jsonHummingPath, err = helpers.ConvertToMidi(audioFilePath)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to convert file to MIDI"})
@@ -208,7 +209,17 @@ func SearchByHumming(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		// Channel to collect results from goroutines
-		resultChan := make(chan models.Song, len(songs))
+		type MatchResult struct {
+			ID              uint    `json:"ID"`
+			Name            string  `json:"Name"`
+			AudioFilePath   string  `json:"AudioFilePath"`
+			AlbumID         *uint   `json:"AlbumID,omitempty"`
+			SimilarityScore float64 `json:"SimilarityScore"`
+		}
+		resultChan := make(chan MatchResult, len(songs))
+
+		// start benchmarking
+		startTime := time.Now()
 
 		// WaitGroup to wait for all goroutines to finish
 		var wg sync.WaitGroup
@@ -218,14 +229,20 @@ func SearchByHumming(db *gorm.DB) gin.HandlerFunc {
 			wg.Add(1)
 			go func(song models.Song) {
 				defer wg.Done()
-				// log checking similarity
+				// Log checking similarity
 				fmt.Printf("[a]: %s\n[b]: %s\n", jsonHummingPath, song.MidiJSON)
 
 				// Calculate similarity score
 				similarityScore := helpers.CheckAudioSimilarity(jsonHummingPath, song.MidiJSON)
-				if similarityScore >= 0.55 {
-					// Send matched song to the channel
-					resultChan <- song
+				if similarityScore > 0.0 {
+					// Send matched song with score to the channel
+					resultChan <- MatchResult{
+						ID:              song.ID,
+						Name:            song.Name,
+						AudioFilePath:   song.AudioFilePath,
+						AlbumID:         song.AlbumID,
+						SimilarityScore: similarityScore,
+					}
 				}
 				fmt.Printf("Checking similarity %s = %f\n", song.Name, similarityScore)
 			}(song)
@@ -236,26 +253,31 @@ func SearchByHumming(db *gorm.DB) gin.HandlerFunc {
 		close(resultChan)
 
 		// Collect results from the channel
-		var matchedSongs []models.Song
-		for song := range resultChan {
-			matchedSongs = append(matchedSongs, song)
+		var matchedResults []MatchResult
+		for result := range resultChan {
+			matchedResults = append(matchedResults, result)
 		}
 
+		// Sort matched results by similarity score in descending order
+		sort.Slice(matchedResults, func(i, j int) bool {
+			return matchedResults[i].SimilarityScore > matchedResults[j].SimilarityScore
+		})
+
 		// Limit the result to the top 9 most similar songs
-		if len(matchedSongs) > 9 {
-			matchedSongs = matchedSongs[:9]
+		if len(matchedResults) > 9 {
+			matchedResults = matchedResults[:9]
 		}
 
 		// Delete the uploaded humming/audio file after comparison
-		err = os.Remove(audioFilePath) // Remove the uploaded file
+		err = os.Remove(audioFilePath)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete the uploaded file"})
 			return
 		}
 
-		// Respond with the matched songs
-		if len(matchedSongs) > 0 {
-			c.JSON(http.StatusOK, gin.H{"data": matchedSongs})
+		// Respond with the matched songs and their similarity scores
+		if len(matchedResults) > 0 {
+			c.JSON(http.StatusOK, gin.H{"data": matchedResults, "time": time.Since(startTime).Seconds()})
 		} else {
 			c.JSON(http.StatusNotFound, gin.H{"message": "No similar songs found"})
 		}

@@ -16,9 +16,12 @@ const Songs: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debounceTimeout, setDebounceTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [isSearchResult, setIsSearchResult] = useState<boolean>(false);
+  const [benchmarkTime, setBenmarkTime] = useState<number>(0);
 
   const fetchSongs = useCallback(
     async (page: number, search = ""): Promise<void> => {
+      setIsSearchResult(false);
       setLoading(true);
       try {
         const response = await axiosInstance.get("/songs", {
@@ -80,6 +83,7 @@ const Songs: React.FC = () => {
 
   const searchByHumming = useCallback(async (audioBlob: Blob, filename: string) => {
     try {
+      setIsSearchResult(true);
       const formData = new FormData();
       formData.append("file", audioBlob, filename);
 
@@ -87,6 +91,7 @@ const Songs: React.FC = () => {
       if (response.status === 200 && response.data.data.length > 0) {
         setSongs(response.data.data);
         setTotalPages(1); // Adjust pagination
+        setBenmarkTime(response.data.time);
       } else {
         console.warn("No matching songs found.");
       }
@@ -136,6 +141,8 @@ const Songs: React.FC = () => {
         </div>
       </section>
 
+      {isSearchResult && <p>Search took {benchmarkTime}ms</p>}
+
       <section className="grid grid-cols-3 gap-3 h-[400px] place-content-start">
         {loading ? (
           <p className="text-center col-span-3">Loading songs...</p>
@@ -153,6 +160,7 @@ const Songs: React.FC = () => {
               <div className="flex w-full flex-col p-4">
                 <h2 className="font-semibold line-clamp-1 w-full">{song.Name}</h2>
                 <p className="text-sm text-gray-600">ID: {song.ID}</p>
+                {isSearchResult && <p className="text-xs">Similarity {(+(song.SimilarityScore || 0) * 100).toFixed(2)}%</p>}
               </div>
             </a>
           ))

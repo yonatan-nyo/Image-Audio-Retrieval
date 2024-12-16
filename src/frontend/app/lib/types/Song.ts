@@ -5,6 +5,7 @@ export interface ISong {
   Name: string;
   AudioFilePath: string;
   AudioFilePathMidi: string;
+  SimilarityScore?: number;
 
   AlbumID: number;
   Album: IAlbum;
