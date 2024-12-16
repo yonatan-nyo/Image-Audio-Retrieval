@@ -13,10 +13,6 @@ const navList = [
     name: "Songs",
     href: "/songs",
   },
-  {
-    name: "Manage",
-    href: "/manage",
-  },
 ];
 
 const Navigation = () => {
