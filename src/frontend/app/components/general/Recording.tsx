@@ -18,12 +18,21 @@ const Recording: React.FC<RecordingProps> = ({ onStop, searchByHumming }) => {
       audioStreamRef.current = stream;
       mediaRecorderRef.current = new MediaRecorder(stream);
 
-      mediaRecorderRef.current.start(5000);
-
       mediaRecorderRef.current.ondataavailable = (e: BlobEvent) => {
         console.log("Data available:", e.data);
         searchByHumming(e.data, "audio.wav");
+        startRecording();
       };
+
+      // Start recording
+      mediaRecorderRef.current.start();
+
+      // Automatically stop recording after 5 seconds
+      setTimeout(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+          mediaRecorderRef.current.stop();
+        }
+      }, 5000);
     } catch (err) {
       console.error("Error accessing microphone:", err);
     }
