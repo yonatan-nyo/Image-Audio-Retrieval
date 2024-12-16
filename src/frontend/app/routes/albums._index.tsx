@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import axiosInstance from "~/utils/axiosInstance";
 import Button from "~/components/general/Button";
 import { IAlbum } from "~/lib/types/Album";
@@ -127,7 +127,8 @@ const Albums: React.FC = () => {
           <p className="text-center col-span-3">Loading...</p>
         ) : albums.length > 0 ? (
           albums.map((album, index) => (
-            <div
+            <NavLink
+              to={`/albums/${album.ID}`}
               key={index}
               className="border rounded-lg cursor-pointer group hover:brightness-110 flex flex-col h-[170px] justify-start overflow-clip relative">
               <div className="relative w-full h-[60%] overflow-hidden">
@@ -142,7 +143,7 @@ const Albums: React.FC = () => {
                 <h2 className="font-semibold line-clamp-1 w-full">{album.Name}</h2>
                 <p className="text-xs text-gray-600">ID: {album.ID}</p>
               </div>
-            </div>
+            </NavLink>
           ))
         ) : (
           <p className="text-center col-span-3">No albums found.</p>

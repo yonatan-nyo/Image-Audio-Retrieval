@@ -14,6 +14,19 @@ import (
 	"gorm.io/gorm"
 )
 
+func GetUnassociatedSongs(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var songs []models.Song
+		err := db.Where("album_id IS NULL").Limit(5).Find(&songs).Error
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch unassociated songs"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"data": songs})
+	}
+}
+
 func GetAllSongsWithPagination(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get pagination parameters from the request query, with defaults

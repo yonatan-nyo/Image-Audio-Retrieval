@@ -55,6 +55,62 @@ func GetAllAlbumsWithPagination(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// GetAlbumById fetches a single album by ID.
+func GetAlbumById(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+
+		var album models.Album
+
+		if err := db.Preload("Songs").First(&album, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Record not found!"})
+			return
+		}
+
+		c.JSON(http.StatusOK, album)
+	}
+}
+
+// AssignSongToAlbum assigns a song to an album.
+func AssignSongToAlbum(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		albumIDParam := c.Param("id")
+		songIDParam := c.Param("songId")
+
+		albumID, err := strconv.Atoi(albumIDParam)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid album ID format"})
+			return
+		}
+
+		songID, err := strconv.Atoi(songIDParam)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid song ID format"})
+			return
+		}
+
+		var album models.Album
+		if err := db.First(&album, albumID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Album not found!"})
+			return
+		}
+
+		var song models.Song
+		if err := db.First(&song, songID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Song not found!"})
+			return
+		}
+
+		// update the song record with the album ID
+		if err := db.Model(&song).Update("album_id", albumID).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign song to album"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Song assigned to album successfully"})
+	}
+}
+
 // UploadAndCreateAlbum handles file uploads and album creation.
 func UploadAndCreateAlbum(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
