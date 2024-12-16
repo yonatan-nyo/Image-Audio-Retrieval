@@ -175,6 +175,16 @@ func SearchByHumming(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		// defer delete after
+		defer func() {
+			for _, path := range uploadedFilePaths {
+				err := os.Remove(path)
+				if err != nil {
+					fmt.Println("Failed to delete file: ", path)
+				}
+			}
+		}()
+
 		audioFilePath := uploadedFilePaths[0]
 
 		// Check if the file needs to be converted to MIDI
@@ -182,7 +192,7 @@ func SearchByHumming(db *gorm.DB) gin.HandlerFunc {
 
 		_, jsonHummingPath, err = helpers.ConvertToMidi(audioFilePath)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert file to MIDI"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to convert file to MIDI"})
 			return
 		}
 
