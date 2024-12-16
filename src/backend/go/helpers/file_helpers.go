@@ -77,12 +77,24 @@ func SaveUploadedFile(c *gin.Context, baseDir, relativePath string) ([]string, e
 		return extractedPaths, nil
 	}
 
-	// If not a ZIP file, save directly with a unique name (basename + UUID)
-	uniqueName := fmt.Sprintf("%s-%s%s", baseName, uuid.New().String(), ext)
-	destPath := filepath.Join(fullPath, uniqueName)
+	// If not a ZIP file, save directly with a unique name, try with basename first, then (basename + UUID)
+	destPath := filepath.Join(fullPath, file.Filename)
+	// while file exists, add a UUID to the filename
+	for i := 0; ; i++ {
+		if _, err := os.Stat(destPath); os.IsNotExist(err) {
+			break
+		}
+		destPath = filepath.Join(fullPath, fmt.Sprintf("%s-%d%s", baseName, i, ext))
+	}
 	if err := c.SaveUploadedFile(file, destPath); err != nil {
 		return nil, err
 	}
+
+	// uniqueName := fmt.Sprintf("%s-%s%s", baseName, uuid.New().String(), ext)
+	// destPath := filepath.Join(fullPath, uniqueName)
+	// if err := c.SaveUploadedFile(file, destPath); err != nil {
+	// 	return nil, err
+	// }
 
 	return []string{destPath}, nil
 }

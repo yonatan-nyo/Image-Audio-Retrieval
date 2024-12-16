@@ -42,8 +42,11 @@ func GetAllSongsWithPagination(db *gorm.DB) gin.HandlerFunc {
 			pageSize = 10
 		}
 
-		if search = c.DefaultQuery("search", ""); search == "" {
+		search = c.DefaultQuery("search", "")
+		if search == "" {
 			search = "%"
+		} else {
+			search = "%" + search + "%"
 		}
 
 		// Enforce maximum page size of 10
