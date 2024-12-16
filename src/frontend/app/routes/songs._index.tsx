@@ -123,21 +123,28 @@ const Songs: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append("file", audioBlob, filename); // Ensure filename is passed here
-
+  
       const response = await axiosInstance.post("/songs/search-by-audio", formData);
-
+  
       if (response.status === 200) {
-        setSongs(response.data.data);
-        setTotalPages(1);
+        if (response.data.data.length > 0) {
+          setSongs(response.data.data);
+          setTotalPages(1); // Assuming no pagination for search results
+        } else {
+          setSongs([]); // No songs found
+          setTotalPages(1);
+        }
       } else {
         console.error("Failed to search by audio.");
       }
     } catch (error) {
+      setSongs([]); // No songs found
       console.error("Error searching by audio:", error);
     } finally {
       setLoading(false);
     }
   };
+  
 
   useEffect(() => {
     fetchSongs(page);
@@ -190,7 +197,8 @@ const Songs: React.FC = () => {
         ) : (
           <p className="text-center col-span-3">No songs found.</p>
         )}
-      </section>
+    </section>
+
 
       <section className="flex justify-between items-center mt-6">
         <Button onClick={() => handlePageChange(page - 1)} disabled={page === 1}>
