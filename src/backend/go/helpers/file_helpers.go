@@ -84,7 +84,7 @@ func SaveUploadedFile(c *gin.Context, baseDir, relativePath string) ([]string, e
 		if _, err := os.Stat(destPath); os.IsNotExist(err) {
 			break
 		}
-		destPath = filepath.Join(fullPath, fmt.Sprintf("%s-%d%s", baseName, i, ext))
+		destPath = filepath.Join(fullPath, fmt.Sprintf("%s-%s%s", baseName, uuid.New().String(), ext))
 	}
 	if err := c.SaveUploadedFile(file, destPath); err != nil {
 		return nil, err
