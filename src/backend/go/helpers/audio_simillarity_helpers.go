@@ -146,19 +146,52 @@ func CheckAudioSimilarity(hummingAudioPathMidi, songAudioPathMidi string) float6
 	hummingRTB := computeRTB(hummingNotes)
 	hummingFTB := computeFTB(hummingNotes)
 
-	songATB := computeATB(songNotes)
-	songRTB := computeRTB(songNotes)
-	songFTB := computeFTB(songNotes)
+	if len(songNotes) <= len(hummingNotes) {
+		songATB := computeATB(songNotes)
+		songRTB := computeRTB(songNotes)
+		songFTB := computeFTB(songNotes)
+
+		atbSim := cosineSimilarity(hummingATB, songATB)
+		rtbSim := cosineSimilarity(hummingRTB, songRTB)
+		ftbSim := cosineSimilarity(hummingFTB, songFTB)
+
+		return 0.05*atbSim + 0.55*rtbSim + 0.40*ftbSim
+	}
+
+	windowSize := len(hummingNotes)
+
+	songATB := computeATB(songNotes[0:windowSize])
+	songRTB := computeRTB(songNotes[0:windowSize])
+	songFTB := computeFTB(songNotes[0:windowSize])
 
 	atbSim := cosineSimilarity(hummingATB, songATB)
 	rtbSim := cosineSimilarity(hummingRTB, songRTB)
 	ftbSim := cosineSimilarity(hummingFTB, songFTB)
 
-	// for i := 0; i < len(songATB); i++ {
-	// 	fmt.Printf("humming[%d]: %.2f, song[%d]: %.2f\n", i, hummingATB[i], i, songATB[i])
-	// }
+	maxSimilarity := 0.05*atbSim + 0.55*rtbSim + 0.40*ftbSim
 
-	overallSimilarity := (0.05*atbSim + 0.55*rtbSim + 0.40*ftbSim)
+	for it := windowSize; it <= len(songNotes); it++ {
 
-	return overallSimilarity
+		songATB[songNotes[it-windowSize]]--
+		songATB[songNotes[it]]++
+
+		songRTB[songNotes[it-windowSize+1]-songNotes[it-windowSize]+127]--
+		songRTB[songNotes[it]-songNotes[it-1]+127]++
+
+		songFTB[songNotes[it-windowSize]-songNotes[0]+127]--
+		songFTB[songNotes[it]-songNotes[0]+127]--
+
+		atbSim := cosineSimilarity(hummingATB, songATB)
+		rtbSim := cosineSimilarity(hummingRTB, songRTB)
+		ftbSim := cosineSimilarity(hummingFTB, songFTB)
+
+		similarity := 0.05*atbSim + 0.55*rtbSim + 0.40*ftbSim
+
+		// Update maximum similarity score
+		if similarity > maxSimilarity {
+			maxSimilarity = similarity
+		}
+	}
+
+	return maxSimilarity
 }
