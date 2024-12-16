@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -153,18 +154,18 @@ func SearchByImage(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// Fetch all albums
+		// Fetch all albums with their songs
 		var albums []models.Album
-		if err := db.Find(&albums).Error; err != nil {
+		if err := db.Preload("Songs").Find(&albums).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch albums"})
 			return
 		}
 
-		// start benchmarking
+		// Start benchmarking
 		startTime := time.Now()
 
 		// Calculate similarity scores
-		var matchedAlbums []models.Album
+		var matchedAlbums []map[string]interface{}
 		for _, album := range albums {
 			if album.Flattened != "" {
 				// Read flattened vector from file
@@ -175,21 +176,38 @@ func SearchByImage(db *gorm.DB) gin.HandlerFunc {
 				defer file.Close()
 
 				var albumVector []float64
-				json.NewDecoder(file).Decode(&albumVector)
+				err = json.NewDecoder(file).Decode(&albumVector)
+				if err != nil {
+					continue
+				}
 
 				// Compute similarity
 				similarity := helpers.CheckPictureSimilarity(uploadedImageVector, albumVector)
 				if similarity > 0.8 {
-					matchedAlbums = append(matchedAlbums, album)
+					matchedAlbums = append(matchedAlbums, map[string]interface{}{
+						"ID":          album.ID,
+						"Name":        album.Name,
+						"PicFilePath": album.PicFilePath,
+						"Songs":       album.Songs,
+						"similarity":  similarity,
+					})
 				}
 			}
 		}
+
+		// Sort by similarity, handling type safety
+		sort.Slice(matchedAlbums, func(i, j int) bool {
+			simI := matchedAlbums[i]["similarity"].(float64)
+			simJ := matchedAlbums[j]["similarity"].(float64)
+			return simI > simJ
+		})
 
 		// Limit results to top 9 matches
 		if len(matchedAlbums) > 9 {
 			matchedAlbums = matchedAlbums[:9]
 		}
 
+		// Check results and respond
 		if len(matchedAlbums) > 0 {
 			c.JSON(http.StatusOK, gin.H{"data": matchedAlbums, "time": time.Since(startTime).Seconds()})
 		} else {
