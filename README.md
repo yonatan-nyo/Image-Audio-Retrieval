@@ -4,14 +4,6 @@
 
 Projek ini dibuat dalam rangka memenuhi tugas besar 2 IF2123 - Aljabar Linear dan Geometri. Dalam tugas ini diimplementasikan suatu website yang mampu melakukan fitur pencarian dan pencocokan gambar dan lagu.
 
-## Contributors
-
-| Nama                 | NIM      |
------------------------------------
-| Varel Tiara          | 13523008 |
-| Yonatan Edward Njoto | 13523036 |
-| Benedict Presley     | 13523067 |
-
 # Panduan
 
 ## Backend
@@ -103,3 +95,10 @@ npm start
 
 Pilih host untuk melakukan deploy.
 
+## Developers
+
+| Nama                 | NIM      
+| :---:                | :---: 
+| Varel Tiara          | 13523008
+| Yonatan Edward Njoto | 13523036
+| Benedict Presley     | 13523067
