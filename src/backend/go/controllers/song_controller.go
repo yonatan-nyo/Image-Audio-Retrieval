@@ -223,7 +223,7 @@ func SearchByHumming(db *gorm.DB) gin.HandlerFunc {
 
 				// Calculate similarity score
 				similarityScore := helpers.CheckAudioSimilarity(jsonHummingPath, song.MidiJSON)
-				if similarityScore > 0.8 {
+				if similarityScore >= 0.55 {
 					// Send matched song to the channel
 					resultChan <- song
 				}
