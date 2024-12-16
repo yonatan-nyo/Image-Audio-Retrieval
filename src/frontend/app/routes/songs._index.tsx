@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import axiosInstance from "~/utils/axiosInstance";
 import Button from "~/components/general/Button";
 import { ISong } from "~/lib/types/Song";
+import { FaCompactDisc } from "react-icons/fa";
+import { getFileUrl } from "~/lib/getFileUrl";
 
 const Songs: React.FC = () => {
   const navigate = useNavigate();
@@ -124,7 +126,10 @@ const Songs: React.FC = () => {
       const formData = new FormData();
       formData.append("file", audioBlob, filename); // Ensure filename is passed here
 
-      const response = await axiosInstance.post("/songs/search-by-audio", formData);
+      const response = await axiosInstance.post(
+        "/songs/search-by-audio",
+        formData
+      );
 
       if (response.status === 200) {
         setSongs(response.data.data);
@@ -170,8 +175,17 @@ const Songs: React.FC = () => {
               Stop
             </Button>
           )}
-          <input type="file" accept="audio/*" onChange={handleAudioUpload} className="hidden" id="audio-upload" />
-          <label htmlFor="audio-upload" className="cursor-pointer px-4 py-2 bg-blue-500 text-white rounded">
+          <input
+            type="file"
+            accept="audio/*"
+            onChange={handleAudioUpload}
+            className="hidden"
+            id="audio-upload"
+          />
+          <label
+            htmlFor="audio-upload"
+            className="cursor-pointer px-4 py-2 bg-blue-500 text-white rounded"
+          >
             Upload Audio File
           </label>
         </div>
@@ -182,10 +196,23 @@ const Songs: React.FC = () => {
           <p className="text-center col-span-3">Loading songs...</p>
         ) : songs.length > 0 ? (
           songs.map((song, index) => (
-            <div key={index} className="border p-4 rounded-lg shadow-md flex flex-col h-[130px] justify-start overflow-clip">
-              <h2 className="font-semibold line-clamp-1 w-full">{song.Name}</h2>
-              <p className="text-sm text-gray-600">ID: {song.ID}</p>
-            </div>
+            <a
+              key={index}
+              className="border rounded-lg shadow-md flex flex-row h-[130px] justify-start overflow-clip items-center hover:brightness-110 bg-[#212121]cursor-pointer"
+              href={getFileUrl(song.AudioFilePath)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <div className="w-auto h-full aspect-square p-4">
+                <FaCompactDisc className="w-auto h-full aspect-square" />
+              </div>
+              <div className="flex w-full flex-col p-4">
+                <h2 className="font-semibold line-clamp-1 w-full">
+                  {song.Name}
+                </h2>
+                <p className="text-sm text-gray-600">ID: {song.ID}</p>
+              </div>
+            </a>
           ))
         ) : (
           <p className="text-center col-span-3">No songs found.</p>
@@ -193,13 +220,19 @@ const Songs: React.FC = () => {
       </section>
 
       <section className="flex justify-between items-center mt-6">
-        <Button onClick={() => handlePageChange(page - 1)} disabled={page === 1}>
+        <Button
+          onClick={() => handlePageChange(page - 1)}
+          disabled={page === 1}
+        >
           Previous
         </Button>
         <span>
           Page {page} of {totalPages}
         </span>
-        <Button onClick={() => handlePageChange(page + 1)} disabled={page === totalPages}>
+        <Button
+          onClick={() => handlePageChange(page + 1)}
+          disabled={page === totalPages}
+        >
           Next
         </Button>
       </section>
