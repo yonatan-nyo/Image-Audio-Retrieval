@@ -3,10 +3,11 @@ package controllers
 import (
 	"bos/pablo/helpers"
 	"bos/pablo/models"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
+	"sync"
 
 	"path/filepath"
 
@@ -80,7 +81,8 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 			var songs []models.Song
 			for _, filePath := range extractedPaths {
 				// Convert each extracted file to .midi if needed
-				convertedMidiPath, err := helpers.ConvertToMidi(filePath)
+				convertedMidiPath, jsonPath, err := helpers.ConvertToMidi(filePath)
+
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert file to MIDI"})
 					return
@@ -93,6 +95,7 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 					Name:              fileName,
 					AudioFilePath:     filePath,
 					AudioFilePathMidi: convertedMidiPath,
+					MidiJSON:          jsonPath, //change this
 				}
 				songs = append(songs, song)
 			}
@@ -112,9 +115,10 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 			// Handle non-ZIP files (e.g., .midi or other audio files)
 			// ext := strings.ToLower(filepath.Ext(extractedPaths[0]))
 			var convertedMidiPath string
+			var jsonPath string
 
 			// Convert the uploaded file to .midi (use an external tool or library)
-			convertedMidiPath, err = helpers.ConvertToMidi(extractedPaths[0])
+			convertedMidiPath, jsonPath, err = helpers.ConvertToMidi(extractedPaths[0])
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert file to MIDI"})
 				return
@@ -128,6 +132,7 @@ func UploadAndCreateSong(db *gorm.DB) gin.HandlerFunc {
 				Name:              fileName,
 				AudioFilePath:     extractedPaths[0],
 				AudioFilePathMidi: convertedMidiPath,
+				MidiJSON:          jsonPath, //change this
 			}
 
 			if err := db.Create(&song).Error; err != nil {
@@ -160,17 +165,12 @@ func SearchByHumming(db *gorm.DB) gin.HandlerFunc {
 		audioFilePath := uploadedFilePaths[0]
 
 		// Check if the file needs to be converted to MIDI
-		fileExtension := strings.ToLower(filepath.Ext(audioFilePath))
-		var midiFilePath string
+		var jsonHummingPath string
 
-		if fileExtension != ".mid" {
-			midiFilePath, err = helpers.ConvertToMidi(audioFilePath)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert file to MIDI"})
-				return
-			}
-		} else {
-			midiFilePath = audioFilePath
+		_, jsonHummingPath, err = helpers.ConvertToMidi(audioFilePath)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert file to MIDI"})
+			return
 		}
 
 		// Fetch all songs from the database
@@ -181,14 +181,38 @@ func SearchByHumming(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		var matchedSongs []models.Song
+		// Channel to collect results from goroutines
+		resultChan := make(chan models.Song, len(songs))
 
-		// Calculate similarity between the uploaded MIDI and each song's MIDI
+		// WaitGroup to wait for all goroutines to finish
+		var wg sync.WaitGroup
+
+		// Calculate similarity between the uploaded MIDI and each song's MIDI concurrently
 		for _, song := range songs {
-			similarityScore := helpers.CheckAudioSimilarity(midiFilePath, song.AudioFilePathMidi)
-			if similarityScore > 0.8 {
-				matchedSongs = append(matchedSongs, song)
-			}
+			wg.Add(1)
+			go func(song models.Song) {
+				defer wg.Done()
+				// log checking similarity
+				fmt.Printf("[a]: %s\n[b]: %s\n", jsonHummingPath, song.MidiJSON)
+
+				// Calculate similarity score
+				similarityScore := helpers.CheckAudioSimilarity(jsonHummingPath, song.MidiJSON)
+				if similarityScore > 0.8 {
+					// Send matched song to the channel
+					resultChan <- song
+				}
+				fmt.Printf("Checking similarity %s = %f\n", song.Name, similarityScore)
+			}(song)
+		}
+
+		// Wait for all goroutines to complete
+		wg.Wait()
+		close(resultChan)
+
+		// Collect results from the channel
+		var matchedSongs []models.Song
+		for song := range resultChan {
+			matchedSongs = append(matchedSongs, song)
 		}
 
 		// Limit the result to the top 9 most similar songs

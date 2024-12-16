@@ -47,7 +47,7 @@ async def convert_to_midi(request: FilePathRequest):
         
         # Return the full path of the generated MIDI file
         logger.info(f"MIDI file created at: {full_midi_path}")
-        return {"full_path": full_midi_path, "json_file_path": json_file_path,}
+        return {"full_path": full_midi_path, "json_file_path": json_file_path}
     except Exception as e:
         logger.error(f"Error processing file: {str(e)}")
         raise HTTPException(
@@ -101,9 +101,9 @@ def save_midi_array_to_json(midi_data_array, midi_file_path, original_filename):
     json_filename = f"{os.path.splitext(original_filename)[0]}_{unique_id}_data.json"
     json_file_path = os.path.join(output_dir, json_filename)
 
-    compact_data = " ".join(map(str, midi_data_array))
+    json_data = json.dumps(midi_data_array, separators=(',', ':'))
 
     with open(json_file_path, "w") as json_file:
-        json.dump({"data": compact_data}, json_file, indent=4)
+        json_file.write(json_data)
 
     return json_file_path

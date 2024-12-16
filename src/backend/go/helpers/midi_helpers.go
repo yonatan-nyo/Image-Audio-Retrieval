@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func ConvertToMidi(audioPath string) (string, error) {
+func ConvertToMidi(audioPath string) (string, string, error) {
 	// ext := strings.ToLower(filepath.Ext(audioPath))
 
 	// URL of the external FastAPI service
@@ -20,14 +20,14 @@ func ConvertToMidi(audioPath string) (string, error) {
 	requestBody, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Failed to marshal request body: %v\n", err)
-		return "", fmt.Errorf("failed to marshal request body: %w", err)
+		return "", "", fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
 	// Create the HTTP request
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(string(requestBody)))
 	if err != nil {
 		log.Printf("Failed to create HTTP request: %v\n", err)
-		return "", fmt.Errorf("failed to create HTTP request: %w", err)
+		return "", "", fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -37,7 +37,7 @@ func ConvertToMidi(audioPath string) (string, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("Failed to send request to API: %v\n", err)
-		return "", fmt.Errorf("failed to send request to API: %w", err)
+		return "", "", fmt.Errorf("failed to send request to API: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -45,7 +45,7 @@ func ConvertToMidi(audioPath string) (string, error) {
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("Failed to read response body: %v\n", err)
-		return "", fmt.Errorf("failed to read response body: %w", err)
+		return "", "", fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	// Print the response body to see its content
@@ -54,19 +54,20 @@ func ConvertToMidi(audioPath string) (string, error) {
 	// Check the response status
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("API returned non-200 status code: %d\n", resp.StatusCode)
-		return "", fmt.Errorf("API returned non-200 status code: %d", resp.StatusCode)
+		return "", "", fmt.Errorf("API returned non-200 status code: %d", resp.StatusCode)
 	}
 
 	// Parse the response
 	var response struct {
 		FullPath string `json:"full_path"`
+		JsonPath string `json:"json_file_path"`
 	}
 	if err := json.Unmarshal(respBody, &response); err != nil {
 		log.Printf("Failed to parse API response: %v\n", err)
-		return "", fmt.Errorf("failed to parse API response: %w", err)
+		return "", "", fmt.Errorf("failed to parse API response: %w", err)
 	}
 
 	// Log the returned full path
 	log.Printf("MIDI conversion successful, full path: %s\n", response.FullPath)
-	return response.FullPath, nil
+	return response.FullPath, response.JsonPath, nil
 }

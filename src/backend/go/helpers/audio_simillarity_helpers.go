@@ -2,37 +2,21 @@ package helpers
 
 import (
 	"encoding/json"
-	"fmt"
+	"io/ioutil"
 	"math"
-	"os"
-	"strconv"
-	"strings"
 )
 
 func LoadNotesArrayFromJSON(filePath string) ([]int, error) {
-	file, err := os.Open(filePath)
+	fileData, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
-	var data struct {
-		Data string `json:"data"`
-	}
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&data); err != nil {
+	var notes []int
+
+	err = json.Unmarshal(fileData, &notes)
+	if err != nil {
 		return nil, err
-	}
-
-	stringNotes := strings.Fields(data.Data)
-
-	notes := make([]int, len(stringNotes))
-	for i, str := range stringNotes {
-		note, err := strconv.Atoi(str)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing note '%s': %v", str, err)
-		}
-		notes[i] = note
 	}
 
 	return notes, nil
@@ -142,6 +126,18 @@ func CheckAudioSimilarity(hummingAudioPathMidi, songAudioPathMidi string) float6
 		return -1
 	}
 
+	// for i := 0; i < len(songNotes); i++ {
+	// 	fmt.Print(songNotes[i])
+	// 	fmt.Print(" ")
+	// }
+	// fmt.Println()
+
+	// for i := 0; i < len(hummingNotes); i++ {
+	// 	fmt.Print(hummingNotes[i])
+	// 	fmt.Print(" ")
+	// }
+	// fmt.Println()
+
 	hummingATB := computeATB(hummingNotes)
 	hummingRTB := computeRTB(hummingNotes)
 	hummingFTB := computeFTB(hummingNotes)
@@ -170,7 +166,7 @@ func CheckAudioSimilarity(hummingAudioPathMidi, songAudioPathMidi string) float6
 
 	maxSimilarity := 0.05*atbSim + 0.55*rtbSim + 0.40*ftbSim
 
-	for it := windowSize; it <= len(songNotes); it++ {
+	for it := windowSize; it < len(songNotes); it++ {
 
 		songATB[songNotes[it-windowSize]]--
 		songATB[songNotes[it]]++
