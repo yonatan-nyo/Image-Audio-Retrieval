@@ -132,12 +132,18 @@ const Songs: React.FC = () => {
       );
 
       if (response.status === 200) {
-        setSongs(response.data.data);
-        setTotalPages(1);
+        if (response.data.data.length > 0) {
+          setSongs(response.data.data);
+          setTotalPages(1); // Assuming no pagination for search results
+        } else {
+          setSongs([]); // No songs found
+          setTotalPages(1);
+        }
       } else {
         console.error("Failed to search by audio.");
       }
     } catch (error) {
+      setSongs([]); // No songs found
       console.error("Error searching by audio:", error);
     } finally {
       setLoading(false);
@@ -191,7 +197,7 @@ const Songs: React.FC = () => {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 h-[400px] place-content-start">
+      <section className="grid grid-cols-3 gap-3 h-[400px] place-content-start">
         {loading ? (
           <p className="text-center col-span-3">Loading songs...</p>
         ) : songs.length > 0 ? (
