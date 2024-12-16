@@ -123,9 +123,9 @@ const Songs: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append("file", audioBlob, filename); // Ensure filename is passed here
-  
+
       const response = await axiosInstance.post("/songs/search-by-audio", formData);
-  
+
       if (response.status === 200) {
         if (response.data.data.length > 0) {
           setSongs(response.data.data);
@@ -144,7 +144,6 @@ const Songs: React.FC = () => {
       setLoading(false);
     }
   };
-  
 
   useEffect(() => {
     fetchSongs(page);
@@ -184,7 +183,7 @@ const Songs: React.FC = () => {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 h-[400px] place-content-start">
+      <section className="grid grid-cols-3 gap-3 h-[400px] place-content-start">
         {loading ? (
           <p className="text-center col-span-3">Loading songs...</p>
         ) : songs.length > 0 ? (
@@ -197,8 +196,7 @@ const Songs: React.FC = () => {
         ) : (
           <p className="text-center col-span-3">No songs found.</p>
         )}
-    </section>
-
+      </section>
 
       <section className="flex justify-between items-center mt-6">
         <Button onClick={() => handlePageChange(page - 1)} disabled={page === 1}>
