@@ -91,7 +91,7 @@ const Songs: React.FC = () => {
         console.warn("No matching songs found.");
       }
     } catch (error) {
-      console.error("Error searching by audio:", error);
+      setSongs([]);
     }
   }, []);
 
@@ -132,7 +132,7 @@ const Songs: React.FC = () => {
           <label htmlFor="audio-upload" className="cursor-pointer px-4 py-2 bg-blue-500 text-white rounded">
             Upload Audio File
           </label>
-          <Recording onStop={() => console.log("Recording stopped")} searchByHumming={searchByHumming} />
+          <Recording searchByHumming={searchByHumming} />
         </div>
       </section>
 
